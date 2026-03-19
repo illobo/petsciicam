@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PETSCIICam</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="viewport">
+      <canvas id="display"></canvas>
+      <div id="fps">-- FPS</div>
+    </div>
+    <div id="sidebar">
+      <h2>PETSCIICam</h2>
+
+      <section>
+        <h3>Mode</h3>
+        <div id="mode-selector" class="button-group">
+          <button data-mode="petscii-color" class="active">PETSCII Color</button>
+          <button data-mode="petscii-bw">PETSCII B/W</button>
+          <button data-mode="ascii">ASCII</button>
+        </div>
+      </section>
+
+      <section>
+        <h3>Effect</h3>
+        <div id="effect-selector" class="button-group">
+          <button data-effect="none" class="active">None</button>
+          <button data-effect="edge">Edge Detect</button>
+          <button data-effect="invert">Invert</button>
+          <button data-effect="threshold">Threshold</button>
+          <button data-effect="noise">Noise</button>
+          <button data-effect="streak">Streak</button>
+          <button data-effect="warhol">Warhol</button>
+          <button data-effect="aging">Aging</button>
+          <button data-effect="broken">Broken TV</button>
+          <button data-effect="matrix">Matrix</button>
+          <button data-effect="fire">Fire</button>
+          <button data-effect="predator">Predator</button>
+          <button data-effect="mosaic">Mosaic</button>
+          <button data-effect="dizzy">Dizzy</button>
+        </div>
+      </section>
+
+      <section>
+        <h3>Grid</h3>
+        <div id="grid-selector" class="button-group">
+          <button data-cols="40">40 cols</button>
+          <button data-cols="80" class="active">80 cols</button>
+          <button data-cols="120">120 cols</button>
+        </div>
+      </section>
+
+      <section>
+        <label><input type="checkbox" id="mirror" checked> Mirror</label>
+      </section>
+    </div>
+  </div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #111;
+  color: #ccc;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+}
+
+#viewport {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: #000;
+}
+
+#display {
+  image-rendering: pixelated;
+  max-width: calc(100vw - 220px);
+  max-height: 100vh;
+}
+
+#fps {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font-size: 11px;
+  color: #555;
+  font-family: monospace;
+}
+
+#sidebar {
+  width: 200px;
+  padding: 14px;
+  background: #1a1a1a;
+  overflow-y: auto;
+  border-left: 1px solid #333;
+  flex-shrink: 0;
+}
+
+#sidebar h2 {
+  font-size: 15px;
+  margin-bottom: 16px;
+  color: #6af;
+  letter-spacing: 1px;
+}
+
+#sidebar h3 {
+  font-size: 11px;
+  margin-bottom: 6px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+#sidebar section {
+  margin-bottom: 18px;
+}
+
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.button-group button {
+  background: #222;
+  color: #999;
+  border: 1px solid #333;
+  padding: 5px 8px;
+  font-family: monospace;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.button-group button:hover {
+  background: #2a2a2a;
+  color: #fff;
+}
+
+.button-group button.active {
+  background: #1a2a3a;
+  color: #6af;
+  border-color: #4a8acf;
+}
+
+label {
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.error {
+  color: #f66;
+  padding: 20px;
+  text-align: center;
+  font-size: 14px;
+}

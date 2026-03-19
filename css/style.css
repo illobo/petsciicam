@@ -101,6 +101,19 @@ label {
   gap: 6px;
 }
 
+#record-status {
+  font-size: 10px;
+  color: #f44;
+  margin-top: 4px;
+  min-height: 14px;
+}
+
+#btn-record.recording {
+  background: #3a1a1a;
+  color: #f66;
+  border-color: #f44;
+}
+
 .error {
   color: #f66;
   padding: 20px;

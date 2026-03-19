@@ -101,6 +101,50 @@ function setupUI() {
   pipeline.onFps = (fps) => {
     document.getElementById('fps').textContent = `${fps} FPS`;
   };
+
+  // Screenshot
+  document.getElementById('btn-screenshot').addEventListener('click', () => {
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const link = document.createElement('a');
+    link.download = `petsciicam-${ts}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+
+  // Video recording
+  const btnRecord = document.getElementById('btn-record');
+  const recordStatus = document.getElementById('record-status');
+  let mediaRecorder = null;
+  let recordedChunks = [];
+
+  btnRecord.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      return;
+    }
+    recordedChunks = [];
+    const stream = canvas.captureStream(24);
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+    mediaRecorder.onstop = () => {
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const link = document.createElement('a');
+      link.download = `petsciicam-${ts}.webm`;
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      URL.revokeObjectURL(link.href);
+      btnRecord.textContent = 'Record Video';
+      btnRecord.classList.remove('recording');
+      recordStatus.textContent = '';
+    };
+    mediaRecorder.start();
+    btnRecord.textContent = 'Stop Recording';
+    btnRecord.classList.add('recording');
+    recordStatus.textContent = 'Recording...';
+  });
 }
 
 async function init() {

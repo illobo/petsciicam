@@ -22,12 +22,18 @@ export class Pipeline {
   setGridSize(width, height) {
     this.gridWidth = width;
     this.gridHeight = height;
-    this._captureCanvas.width = width;
-    this._captureCanvas.height = height;
+    this._updateCaptureSize();
   }
 
   setConverter(converter) {
     this.converter = converter;
+    this._updateCaptureSize();
+  }
+
+  _updateCaptureSize() {
+    const bs = this.converter?.blockSize ?? 1;
+    this._captureCanvas.width = this.gridWidth * bs;
+    this._captureCanvas.height = this.gridHeight * bs;
   }
 
   setEffect(effect) {
@@ -62,18 +68,19 @@ export class Pipeline {
     if (!this.camera.ready || !this.converter) return;
 
     const { _captureCtx: ctx, _captureCanvas: cvs, gridWidth: gw, gridHeight: gh } = this;
+    const cw = cvs.width, ch = cvs.height; // may be gw*blockSize × gh*blockSize
 
     // Capture frame (optionally mirrored)
     if (this.mirror) {
       ctx.save();
       ctx.scale(-1, 1);
-      ctx.drawImage(this.camera.element, -gw, 0, gw, gh);
+      ctx.drawImage(this.camera.element, -cw, 0, cw, ch);
       ctx.restore();
     } else {
-      ctx.drawImage(this.camera.element, 0, 0, gw, gh);
+      ctx.drawImage(this.camera.element, 0, 0, cw, ch);
     }
 
-    let frame = ctx.getImageData(0, 0, gw, gh);
+    let frame = ctx.getImageData(0, 0, cw, ch);
 
     // Apply effects
     for (const effect of this.effects) {
@@ -82,6 +89,7 @@ export class Pipeline {
 
     // Convert to cells
     const cells = this.converter.convert(frame);
+    if (!cells) return;
 
     // Render
     this.renderer.draw(cells, gw, gh);

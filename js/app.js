@@ -3,6 +3,8 @@ import { Pipeline } from './pipeline.js';
 import { Renderer } from './renderer.js';
 import { AsciiConverter } from './converters/ascii.js';
 import { PetsciiConverter } from './converters/petscii.js';
+import { PetsciiFullConverter } from './converters/petscii-full.js';
+import { loadCharset } from './converters/charset-loader.js';
 import { NoneEffect } from './effects/none.js';
 import { EdgeEffect } from './effects/edge.js';
 import { InvertEffect } from './effects/invert.js';
@@ -23,9 +25,16 @@ const canvas = document.getElementById('display');
 const renderer = new Renderer(canvas);
 const pipeline = new Pipeline(camera, renderer);
 
+const petsciiFullColor = new PetsciiFullConverter();
+petsciiFullColor.setMode(true);
+const petsciiFullBw = new PetsciiFullConverter();
+petsciiFullBw.setMode(false);
+
 const converters = {
   ascii: new AsciiConverter(),
   petscii: new PetsciiConverter(),
+  'petscii-full-color': petsciiFullColor,
+  'petscii-full-bw': petsciiFullBw,
 };
 
 const effects = {
@@ -52,6 +61,8 @@ let currentCols = 80;
 function updateConverter() {
   if (currentMode === 'ascii') {
     pipeline.setConverter(converters.ascii);
+  } else if (currentMode === 'petscii-full-color' || currentMode === 'petscii-full-bw') {
+    pipeline.setConverter(converters[currentMode]);
   } else {
     converters.petscii.setMode(currentMode === 'petscii-color');
     pipeline.setConverter(converters.petscii);
@@ -158,6 +169,19 @@ async function init() {
   } catch (err) {
     document.getElementById('viewport').innerHTML =
       `<p class="error">Camera access required.<br>Please allow camera access and reload.<br><br>${err.message}</p>`;
+  }
+
+  // Load full PETSCII charset in the background
+  try {
+    const bitmaps = await loadCharset('assets/charsets/standard256-upper.png');
+    petsciiFullColor.setCharset(bitmaps);
+    petsciiFullBw.setCharset(bitmaps);
+    document.querySelectorAll('[data-mode^="petscii-full"]').forEach(b => { b.disabled = false; });
+    const loading = document.getElementById('charset-loading');
+    if (loading) loading.remove();
+  } catch (e) {
+    const loading = document.getElementById('charset-loading');
+    if (loading) loading.textContent = 'Charset load failed';
   }
 }
 

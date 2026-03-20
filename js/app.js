@@ -4,6 +4,7 @@ import { Renderer } from './renderer.js';
 import { AsciiConverter } from './converters/ascii.js';
 import { PetsciiConverter } from './converters/petscii.js';
 import { PetsciiFullConverter } from './converters/petscii-full.js';
+import { HybridConverter } from './converters/petscii-hybrid.js';
 import { loadCharset } from './converters/charset-loader.js';
 import { NoneEffect } from './effects/none.js';
 import { EdgeEffect } from './effects/edge.js';
@@ -29,12 +30,18 @@ const petsciiFullColor = new PetsciiFullConverter();
 petsciiFullColor.setMode(true);
 const petsciiFullBw = new PetsciiFullConverter();
 petsciiFullBw.setMode(false);
+const hybridColor = new HybridConverter();
+hybridColor.setMode(true);
+const hybridBw = new HybridConverter();
+hybridBw.setMode(false);
 
 const converters = {
   ascii: new AsciiConverter(),
   petscii: new PetsciiConverter(),
   'petscii-full-color': petsciiFullColor,
   'petscii-full-bw': petsciiFullBw,
+  'petscii-hybrid-color': hybridColor,
+  'petscii-hybrid-bw': hybridBw,
 };
 
 const effects = {
@@ -61,7 +68,7 @@ let currentCols = 80;
 function updateConverter() {
   if (currentMode === 'ascii') {
     pipeline.setConverter(converters.ascii);
-  } else if (currentMode === 'petscii-full-color' || currentMode === 'petscii-full-bw') {
+  } else if (currentMode.startsWith('petscii-full') || currentMode.startsWith('petscii-hybrid')) {
     pipeline.setConverter(converters[currentMode]);
   } else {
     converters.petscii.setMode(currentMode === 'petscii-color');
@@ -176,7 +183,9 @@ async function init() {
     const bitmaps = await loadCharset('assets/charsets/standard256-upper.png');
     petsciiFullColor.setCharset(bitmaps);
     petsciiFullBw.setCharset(bitmaps);
-    document.querySelectorAll('[data-mode^="petscii-full"]').forEach(b => { b.disabled = false; });
+    hybridColor.setCharset(bitmaps);
+    hybridBw.setCharset(bitmaps);
+    document.querySelectorAll('[data-mode^="petscii-full"],[data-mode^="petscii-hybrid"]').forEach(b => { b.disabled = false; });
     const loading = document.getElementById('charset-loading');
     if (loading) loading.remove();
   } catch (e) {

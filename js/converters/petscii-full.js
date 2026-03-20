@@ -9,15 +9,14 @@ const C64 = [
 /**
  * Full 256-character PETSCII converter.
  *
- * Requires blockSize=8: the pipeline captures at gridW*8 × gridH*8 pixels,
- * giving one 8×8 source block per output character cell.
+ * blockSize=8: pipeline captures at gridW*8 × gridH*8 pixels,
+ * giving one 8×8 source block per output cell for shape matching.
  *
- * Algorithm (color mode):
- *   1. For each 8×8 block, compute the average RGB and find the 2 nearest C64 colors.
- *   2. Precompute per-pixel squared-distance delta: diff[p] = fgScore[p] - bgScore[p].
- *   3. For each of 256 chars: score = totalBgScore + Σ(bit_p × diff[p]).
- *      This is a fast dot-product — no multiply inside the char loop.
- *   4. Swap fg/bg and repeat; keep the global minimum.
+ * Color algorithm:
+ *   1. Per-pixel nearest-C64 tally over the 8×8 block → top 4 colors.
+ *   2. Test all 6 unordered pairs (both fg/bg orientations = 12 combos).
+ *   3. For each combo, precompute per-pixel score delta, then score all 256
+ *      chars via fast dot-product (no multiplications in the inner loop).
  */
 export class PetsciiFullConverter {
   constructor() {
@@ -25,17 +24,16 @@ export class PetsciiFullConverter {
     this.colored = true;
     this.fgColor = [0, 255, 0];
     this.bgColor = [0, 0, 0];
-    this.blockSize = 8; // tells pipeline to capture at 8× resolution
+    this.blockSize = 8;
 
-    // Reusable typed arrays — allocated once
-    this._diff = new Int32Array(64);
+    this._diff   = new Int32Array(64);
     this._blockR = new Uint8Array(64);
     this._blockG = new Uint8Array(64);
     this._blockB = new Uint8Array(64);
+    this._tally  = new Uint8Array(16);
   }
 
   get ready() { return this.bitmaps !== null; }
-
   setCharset(bitmaps) { this.bitmaps = bitmaps; }
   setMode(colored) { this.colored = colored; }
 
@@ -54,12 +52,11 @@ export class PetsciiFullConverter {
   }
 
   _color(data, cells, gridW, gridH, W) {
-    const { _diff: diff, _blockR: blockR, _blockG: blockG, _blockB: blockB, bitmaps } = this;
+    const { _diff: diff, _blockR: blockR, _blockG: blockG, _blockB: blockB, _tally: tally, bitmaps } = this;
 
     for (let gy = 0; gy < gridH; gy++) {
       for (let gx = 0; gx < gridW; gx++) {
-        // Extract 8×8 block and compute average color
-        let sumR = 0, sumG = 0, sumB = 0;
+        // Extract 8×8 block pixels
         for (let py = 0; py < 8; py++) {
           for (let px = 0; px < 8; px++) {
             const src = ((gy * 8 + py) * W + (gx * 8 + px)) * 4;
@@ -67,63 +64,83 @@ export class PetsciiFullConverter {
             blockR[p] = data[src];
             blockG[p] = data[src + 1];
             blockB[p] = data[src + 2];
-            sumR += blockR[p]; sumG += blockG[p]; sumB += blockB[p];
           }
         }
-        const avgR = (sumR / 64) | 0;
-        const avgG = (sumG / 64) | 0;
-        const avgB = (sumB / 64) | 0;
 
-        // Find 2 nearest C64 colors to block average
-        let c0 = 0, c1 = 1, d0 = 1e9, d1 = 1e9;
-        for (let c = 0; c < 16; c++) {
-          const dr = avgR - C64[c][0], dg = avgG - C64[c][1], db = avgB - C64[c][2];
-          const d = dr * dr + dg * dg + db * db;
-          if (d < d0) { d1 = d0; c1 = c0; d0 = d; c0 = c; }
-          else if (d < d1) { d1 = d; c1 = c; }
+        // Per-pixel nearest C64 tally → top 4 most common colors
+        tally.fill(0);
+        for (let p = 0; p < 64; p++) {
+          let best = 0, bestD = Infinity;
+          for (let c = 0; c < 16; c++) {
+            const dr = blockR[p] - C64[c][0];
+            const dg = blockG[p] - C64[c][1];
+            const db = blockB[p] - C64[c][2];
+            const d = dr * dr + dg * dg + db * db;
+            if (d < bestD) { bestD = d; best = c; }
+          }
+          tally[best]++;
         }
 
-        let bestScore = Infinity, bestChar = 0, bestFg = c0, bestBg = c1;
-
-        // Test both color assignments: (c0=fg, c1=bg) and swapped
-        for (let swap = 0; swap < 2; swap++) {
-          const fgIdx = swap === 0 ? c0 : c1;
-          const bgIdx = swap === 0 ? c1 : c0;
-          const fgR = C64[fgIdx][0], fgG = C64[fgIdx][1], fgB = C64[fgIdx][2];
-          const bgR = C64[bgIdx][0], bgG = C64[bgIdx][1], bgB = C64[bgIdx][2];
-
-          // Precompute per-pixel score delta and total background score
-          let totalBg = 0;
-          for (let p = 0; p < 64; p++) {
-            const drf = blockR[p] - fgR, dgf = blockG[p] - fgG, dbf = blockB[p] - fgB;
-            const drb = blockR[p] - bgR, dgb = blockG[p] - bgG, dbb = blockB[p] - bgB;
-            const fs = drf * drf + dgf * dgf + dbf * dbf;
-            const bs = drb * drb + dgb * dgb + dbb * dbb;
-            diff[p] = fs - bs;
-            totalBg += bs;
-          }
-
-          // Score each character via fast dot-product (no multiplications in inner loop)
-          for (let ci = 0; ci < bitmaps.length; ci++) {
-            const bmp = bitmaps[ci];
-            let score = totalBg;
-            for (let row = 0; row < 8; row++) {
-              const byte = bmp[row];
-              const base = row * 8;
-              if (byte & 0x80) score += diff[base];
-              if (byte & 0x40) score += diff[base + 1];
-              if (byte & 0x20) score += diff[base + 2];
-              if (byte & 0x10) score += diff[base + 3];
-              if (byte & 0x08) score += diff[base + 4];
-              if (byte & 0x04) score += diff[base + 5];
-              if (byte & 0x02) score += diff[base + 6];
-              if (byte & 0x01) score += diff[base + 7];
+        const top = [-1, -1, -1, -1];
+        for (let t = 0; t < 4; t++) {
+          let bestC = -1, bestCount = 0;
+          for (let c = 0; c < 16; c++) {
+            if (tally[c] > bestCount && top[0] !== c && top[1] !== c && top[2] !== c && top[3] !== c) {
+              bestCount = tally[c]; bestC = c;
             }
-            if (score < bestScore) {
-              bestScore = score;
-              bestChar = ci;
-              bestFg = fgIdx;
-              bestBg = bgIdx;
+          }
+          top[t] = bestC;
+        }
+
+        let bestScore = Infinity, bestChar = 0;
+        let bestFg = top[0] >= 0 ? top[0] : 0;
+        let bestBg = top[1] >= 0 ? top[1] : 1;
+
+        // Test all 6 unordered pairs from top 4, both fg/bg orientations
+        for (let a = 0; a < 4; a++) {
+          if (top[a] < 0) continue;
+          for (let b = a + 1; b < 4; b++) {
+            if (top[b] < 0) continue;
+            for (let swap = 0; swap < 2; swap++) {
+              const fgIdx = swap === 0 ? top[a] : top[b];
+              const bgIdx = swap === 0 ? top[b] : top[a];
+              const fgR = C64[fgIdx][0], fgG = C64[fgIdx][1], fgB = C64[fgIdx][2];
+              const bgR = C64[bgIdx][0], bgG = C64[bgIdx][1], bgB = C64[bgIdx][2];
+
+              // Precompute per-pixel score delta (fgScore - bgScore) and total bg score
+              let totalBg = 0;
+              for (let p = 0; p < 64; p++) {
+                const drf = blockR[p] - fgR, dgf = blockG[p] - fgG, dbf = blockB[p] - fgB;
+                const drb = blockR[p] - bgR, dgb = blockG[p] - bgG, dbb = blockB[p] - bgB;
+                const fs = drf * drf + dgf * dgf + dbf * dbf;
+                const bs = drb * drb + dgb * dgb + dbb * dbb;
+                diff[p] = fs - bs;
+                totalBg += bs;
+              }
+
+              // Score each char: score = totalBg + Σ(bit_p × diff[p])
+              for (let ci = 0; ci < bitmaps.length; ci++) {
+                const bmp = bitmaps[ci];
+                let score = totalBg;
+                for (let row = 0; row < 8; row++) {
+                  const byte = bmp[row];
+                  const base = row * 8;
+                  if (byte & 0x80) score += diff[base];
+                  if (byte & 0x40) score += diff[base + 1];
+                  if (byte & 0x20) score += diff[base + 2];
+                  if (byte & 0x10) score += diff[base + 3];
+                  if (byte & 0x08) score += diff[base + 4];
+                  if (byte & 0x04) score += diff[base + 5];
+                  if (byte & 0x02) score += diff[base + 6];
+                  if (byte & 0x01) score += diff[base + 7];
+                }
+                if (score < bestScore) {
+                  bestScore = score;
+                  bestChar = ci;
+                  bestFg = fgIdx;
+                  bestBg = bgIdx;
+                }
+              }
             }
           }
         }
@@ -144,8 +161,7 @@ export class PetsciiFullConverter {
 
     for (let gy = 0; gy < gridH; gy++) {
       for (let gx = 0; gx < gridW; gx++) {
-        // Precompute per-pixel luma diff vs white(255) / black(0)
-        // diff[p] = (lum-255)² - lum² = 65025 - 510*lum
+        // diff[p] = (lum-255)² - lum² = 65025 - 510*lum  (fg=white, bg=black)
         let totalBg = 0;
         for (let py = 0; py < 8; py++) {
           for (let px = 0; px < 8; px++) {
